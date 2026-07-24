@@ -2,56 +2,694 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-type Command = { name: string; category: string; description: string; permission: string; example: string };
-const groups: Record<string, string[]> = {
-  Channels: ["archivech <#ch>", "channelinfo", "createinvite [#ch]", "hideall", "lockall", "mcat <name> <count>", "mc <name> <count>", "mcv <name> <count>", "movech <#ch> <#cat>", "showall", "slowall <seconds>", "topicall <topic>", "unlockall"],
-  Roles: ["cloner <role> <name>", "colorallr <hex>", "hoistallr", "listroles", "mentionallr", "mr <name> <count>", "massremoverole <role>", "massrole <role>", "roleinfo <role>", "unhoistallr", "unmentionallr"],
-  Members: ["joindate <days>", "jointime <user>", "listbans", "massdeafen", "massmute", "membercount", "nickall <nick>", "resetnicks", "timeoutall <minutes>", "undeafenall", "unmuteall", "untimeoutall", "userinfo <user>"],
-  "Mass DM": ["dmowner <msg>", "dmsall <msg>", "dmrepeat <user> <count> <msg>", "massdmbots <msg>", "massdmids <id,id,...> <msg>", "massdmnew <days> <msg>", "massdmoffline <msg>", "massdmonline <msg>", "massdmrole <role> <msg>"],
-  Messaging: ["countdown <n> <msg>", "forwardall <#src> <#dest>", "pin <msg_id>", "purge <count>", "purgebots <count>", "purgeuser <user>", "react <msg> <emoji>", "say <#ch> <msg>", "wipechat"],
-  Server: ["audit <count>", "banner <url>", "delthreads", "delemojis", "delstickers", "description <text>", "delwebhooks", "icon <url>", "listinvites", "renameserver <name>", "serverinfo", "setafk <#vc>", "setfilter <0-2>", "setnotif <0-1>", "setverification <0-4>", "vanity"],
-  Logging: ["log [#channel]", "logclear", "logfile", "logoff", "logtail [lines]"],
-  Bot: ["activity <type> <text>", "botavatar <url>", "botname <name>", "botstatus <text>", "cmdcount", "guilds", "ping", "resume", "stop", "uptime"],
-  Whitelist: ["wladd <user_id>", "wlremove <user_id>", "wllist"],
-  ModMail: ["hireclose <id>", "hiredeny <id> [reason]", "hireinfo <id>", "hirelist", "hireaccept <id>", "hirecancel <id>", "hirenote <id> <note>", "hiresetup [#ch]"],
-  Hire: ["hire", "hireprice", "hirestatus <id>", "setprice <tier> <amt>"],
-  Utility: ["avatar [user]", "botinfo", "botperms [#ch]", "calc <expr>", "charcount <text>", "color <hex>", "countall", "decode <text>", "encode <text>", "findmember <query>", "guildbanner", "guildicon", "hex2rgb <hex>", "serverstats", "snowflake <id>", "timestamp <unix>", "whois <id>"],
-  Fun: ["aesthetic <text>", "bigtext <text>", "binary <text>", "clap <text>", "editsnipe", "leet <text>", "mock <text>", "morse <text>", "poll <q> | <opt1> | <opt2>", "reverse <text>", "rot13 <text>", "snipe", "snipeclear", "uwu <text>"],
-  Warns: ["clearwarns <user>", "delwarn <user> <id>", "masswarn <role> [reason]", "topwarns [n]", "warn <user> [reason]", "warncount <user>", "warnings <user>"],
-  Tools: ["autonukeclear [guild_id]", "autonutelist", "backup [label]", "backupdelete <id>", "backuplist", "kickbots", "prunembers [days]", "restore <id>", "scheduleannounce <secs> <#ch> <msg>", "tempban <user> <hours> [reason]"],
+type Command = {
+  name: string;
+  category: string;
+  description: string;
+  permission: string;
+  example: string;
 };
-const commands: Command[] = Object.entries(groups).flatMap(([category, names]) => names.map((name) => ({ name: `!${name}`, category, description: `${category} command for The End Of All Fate.`, permission: ["Whitelist", "Tools", "Server", "Roles", "Channels"].includes(category) ? "Whitelist" : "Configured by server", example: `!${name}` })));
+type BotEvent = {
+  id: string;
+  timestamp: string;
+  level: "info" | "warn" | "error";
+  type: string;
+  message: string;
+  command?: string;
+  user?: string;
+  guild?: string;
+  channel?: string;
+};
+const groups: Record<string, string[]> = {
+  Channels: [
+    "archivech <#ch>",
+    "channelinfo",
+    "createinvite [#ch]",
+    "hideall",
+    "lockall",
+    "mcat <name> <count>",
+    "mc <name> <count>",
+    "mcv <name> <count>",
+    "movech <#ch> <#cat>",
+    "showall",
+    "slowall <seconds>",
+    "topicall <topic>",
+    "unlockall",
+  ],
+  Roles: [
+    "cloner <role> <name>",
+    "colorallr <hex>",
+    "hoistallr",
+    "listroles",
+    "mentionallr",
+    "mr <name> <count>",
+    "massremoverole <role>",
+    "massrole <role>",
+    "roleinfo <role>",
+    "unhoistallr",
+    "unmentionallr",
+  ],
+  Members: [
+    "joindate <days>",
+    "jointime <user>",
+    "listbans",
+    "massdeafen",
+    "massmute",
+    "membercount",
+    "nickall <nick>",
+    "resetnicks",
+    "timeoutall <minutes>",
+    "undeafenall",
+    "unmuteall",
+    "untimeoutall",
+    "userinfo <user>",
+  ],
+  "Mass DM": [
+    "dmowner <msg>",
+    "dmsall <msg>",
+    "dmrepeat <user> <count> <msg>",
+    "massdmbots <msg>",
+    "massdmids <id,id,...> <msg>",
+    "massdmnew <days> <msg>",
+    "massdmoffline <msg>",
+    "massdmonline <msg>",
+    "massdmrole <role> <msg>",
+  ],
+  Messaging: [
+    "countdown <n> <msg>",
+    "forwardall <#src> <#dest>",
+    "pin <msg_id>",
+    "purge <count>",
+    "purgebots <count>",
+    "purgeuser <user>",
+    "react <msg> <emoji>",
+    "say <#ch> <msg>",
+    "wipechat",
+  ],
+  Server: [
+    "audit <count>",
+    "banner <url>",
+    "delthreads",
+    "delemojis",
+    "delstickers",
+    "description <text>",
+    "delwebhooks",
+    "icon <url>",
+    "listinvites",
+    "renameserver <name>",
+    "serverinfo",
+    "setafk <#vc>",
+    "setfilter <0-2>",
+    "setnotif <0-1>",
+    "setverification <0-4>",
+    "vanity",
+  ],
+  Logging: [
+    "log [#channel]",
+    "logclear",
+    "logfile",
+    "logoff",
+    "logtail [lines]",
+  ],
+  Bot: [
+    "activity <type> <text>",
+    "botavatar <url>",
+    "botname <name>",
+    "botstatus <text>",
+    "cmdcount",
+    "guilds",
+    "ping",
+    "resume",
+    "stop",
+    "uptime",
+  ],
+  Whitelist: ["wladd <user_id>", "wlremove <user_id>", "wllist"],
+  ModMail: [
+    "hireclose <id>",
+    "hiredeny <id> [reason]",
+    "hireinfo <id>",
+    "hirelist",
+    "hireaccept <id>",
+    "hirecancel <id>",
+    "hirenote <id> <note>",
+    "hiresetup [#ch]",
+  ],
+  Hire: ["hire", "hireprice", "hirestatus <id>", "setprice <tier> <amt>"],
+  Utility: [
+    "avatar [user]",
+    "botinfo",
+    "botperms [#ch]",
+    "calc <expr>",
+    "charcount <text>",
+    "color <hex>",
+    "countall",
+    "decode <text>",
+    "encode <text>",
+    "findmember <query>",
+    "guildbanner",
+    "guildicon",
+    "hex2rgb <hex>",
+    "serverstats",
+    "snowflake <id>",
+    "timestamp <unix>",
+    "whois <id>",
+  ],
+  Fun: [
+    "aesthetic <text>",
+    "bigtext <text>",
+    "binary <text>",
+    "clap <text>",
+    "editsnipe",
+    "leet <text>",
+    "mock <text>",
+    "morse <text>",
+    "poll <q> | <opt1> | <opt2>",
+    "reverse <text>",
+    "rot13 <text>",
+    "snipe",
+    "snipeclear",
+    "uwu <text>",
+  ],
+  Warns: [
+    "clearwarns <user>",
+    "delwarn <user> <id>",
+    "masswarn <role> [reason]",
+    "topwarns [n]",
+    "warn <user> [reason]",
+    "warncount <user>",
+    "warnings <user>",
+  ],
+  Tools: [
+    "autonukeclear [guild_id]",
+    "autonutelist",
+    "backup [label]",
+    "backupdelete <id>",
+    "backuplist",
+    "kickbots",
+    "prunembers [days]",
+    "restore <id>",
+    "scheduleannounce <secs> <#ch> <msg>",
+    "tempban <user> <hours> [reason]",
+  ],
+};
+const commands: Command[] = Object.entries(groups).flatMap(
+  ([category, names]) =>
+    names.map((name) => ({
+      name: `!${name}`,
+      category,
+      description: `${category} command for The End Of All Fate.`,
+      permission: [
+        "Whitelist",
+        "Tools",
+        "Server",
+        "Roles",
+        "Channels",
+      ].includes(category)
+        ? "Whitelist"
+        : "Configured by server",
+      example: `!${name}`,
+    })),
+);
 const categories = ["All", ...Object.keys(groups)];
 
 export default function Home() {
   const [category, setCategory] = useState("All");
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"commands" | "owner">("commands");
-  const [ownerAuth, setOwnerAuth] = useState<{ authenticated: boolean; user?: { name: string } } | null>(null);
-  const [ownerLive, setOwnerLive] = useState<{ bot?: { connected: boolean; username: string; guilds: number }; commands?: { name: string; status: string }[]; checkedAt?: string }>({});
-  const [botStatus, setBotStatus] = useState({ connected: false, botId: "1503928394411147304", username: "The End Of All Fate", updatedAt: "" });
+  const [ownerAuth, setOwnerAuth] = useState<{
+    authenticated: boolean;
+    user?: { name: string };
+  } | null>(null);
+  const [ownerLive, setOwnerLive] = useState<{
+    bot?: { connected: boolean; username: string; guilds: number };
+    commands?: { name: string; status: string }[];
+    checkedAt?: string;
+  }>({});
+  const [botEvents, setBotEvents] = useState<BotEvent[]>([]);
+  const [eventFilter, setEventFilter] = useState<
+    "all" | "info" | "warn" | "error"
+  >("all");
+  const [eventQuery, setEventQuery] = useState("");
+  const [eventConnected, setEventConnected] = useState(false);
+  const [botStatus, setBotStatus] = useState({
+    connected: false,
+    botId: "1503928394411147304",
+    username: "The End Of All Fate",
+    updatedAt: "",
+  });
   useEffect(() => {
-    const refresh = () => fetch("/api/bot-status").then((response) => response.json()).then(setBotStatus).catch(() => undefined);
+    const refresh = () =>
+      fetch("/api/bot-status")
+        .then((response) => response.json())
+        .then(setBotStatus)
+        .catch(() => undefined);
     refresh();
     const timer = window.setInterval(refresh, 15000);
     return () => window.clearInterval(timer);
   }, []);
   useEffect(() => {
-    fetch("/api/auth/me").then((response) => response.json()).then(setOwnerAuth).catch(() => setOwnerAuth({ authenticated: false }));
+    fetch("/api/auth/me")
+      .then((response) => response.json())
+      .then(setOwnerAuth)
+      .catch(() => setOwnerAuth({ authenticated: false }));
   }, []);
   useEffect(() => {
     if (!ownerAuth?.authenticated) return;
-    const refresh = () => fetch("/api/owner-live").then((response) => response.ok ? response.json() : null).then((data) => data && setOwnerLive(data)).catch(() => undefined);
+    const refresh = () =>
+      fetch("/api/owner-live")
+        .then((response) => (response.ok ? response.json() : null))
+        .then((data) => data && setOwnerLive(data))
+        .catch(() => undefined);
     refresh();
     const timer = window.setInterval(refresh, 15000);
     return () => window.clearInterval(timer);
   }, [ownerAuth?.authenticated]);
-  const filtered = useMemo(() => commands.filter((command) => (category === "All" || command.category === category) && `${command.name} ${command.description}`.toLowerCase().includes(query.toLowerCase())), [category, query]);
-  return <main className="site-shell">
-    <header className="site-header"><a className="logo" href="#"><span>✦</span> THE END OF ALL FATE</a><div className="header-actions"><button className={tab === "commands" ? "header-link active" : "header-link"} onClick={() => setTab("commands")}>Commands</button><button className={tab === "owner" ? "header-link active" : "header-link"} onClick={() => setTab("owner")}>Owner panel</button><a className="invite" href="https://discord.com/oauth2/authorize?client_id=1503928394411147304&permissions=8&scope=bot" target="_blank" rel="noreferrer">Add bot ↗</a></div></header>
-    <section className="hero"><div><p className="kicker">PRIVATE DISCORD TOOLKIT</p><h1>The End<br /><i>Of All Fate.</i></h1><p className="hero-copy">A whitelist-controlled Discord bot for server operations, logging, backups, moderation, utilities, and support workflows.</p><div className="hero-actions"><button className="primary" onClick={() => document.getElementById("commands")?.scrollIntoView({ behavior: "smooth" })}>Browse commands <span>↓</span></button><span className="status"><b /> Python bot online</span></div></div><div className="orbit-art" aria-hidden="true"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="orbit-core">✦</div><span className="orbit-label label-a">!<small>prefix commands</small></span><span className="orbit-label label-b">WL<small>protected access</small></span></div></section>
-    <section className="metrics"><div><strong>{commands.length}</strong><span>documented commands</span></div><div><strong>15</strong><span>command categories</span></div><div><strong>24/7</strong><span>action logging</span></div><div><strong>1</strong><span>persistent whitelist</span></div></section>
-    {tab === "owner" ? <section className="owner-panel" id="owner">{ownerAuth?.authenticated ? <><div className="owner-profile-large"><div className="owner-banner"><span className="owner-crown">✦ OWNER</span></div><div className="owner-body"><img src="/owner-avatar.png" alt="Owner avatar" /><div className="owner-main"><p className="section-label">AUTHENTICATED OWNER</p><h2>label</h2><span>@lifeb4rehab</span></div><div className="owner-id"><span>DISCORD USER ID</span><code>1501897844624461904</code></div><div className="owner-access"><b>OWNER ACCESS</b><span>Full protected control</span></div></div><div className="owner-stats"><div><strong>Verified</strong><span>Owner identity</span></div><div><strong>Protected</strong><span>Access scope</span></div><div><strong>Persistent</strong><span>Whitelist status</span></div><div><strong>Private</strong><span>Control surface</span></div></div></div><div className="live-bot-panel"><div className="live-bot-heading"><div><p className="section-label">LIVE BOT INFORMATION</p><h2>{botStatus.username}</h2><p>Real-time telemetry for the connected Discord application.</p></div><span className={botStatus.connected ? "live-status online" : "live-status"}><b />{botStatus.connected ? "Online" : "Awaiting token"}</span></div><div className="live-bot-grid"><div><span>CLIENT ID</span><code>{botStatus.botId}</code></div><div><span>IDENTITY</span><strong>{botStatus.username}</strong></div><div><span>CHECK FREQUENCY</span><strong>15 seconds</strong></div><div><span>LAST CHECK</span><strong>{botStatus.updatedAt ? new Date(botStatus.updatedAt).toLocaleTimeString() : "—"}</strong></div></div><a className="invite live-invite" href="https://discord.com/oauth2/authorize?client_id=1503928394411147304&permissions=8&scope=bot" target="_blank" rel="noreferrer">Invite this bot to Discord ↗</a></div><div className="live-command-panel"><div className="live-bot-heading"><div><p className="section-label">LIVE READ-ONLY COMMANDS</p><h2>Command pulse</h2><p>Owner-only availability checks, refreshed every 15 seconds.</p></div><span className="live-status online"><b />Protected</span></div><div className="live-command-grid">{(ownerLive.commands ?? []).map((command) => <div className="live-command" key={command.name}><code>{command.name}</code><span className={command.status === "ready" ? "ready" : ""}><b />{command.status}</span></div>)}</div><div className="live-command-meta"><span>{ownerLive.bot?.guilds ?? 0} connected servers</span><span>Last check {ownerLive.checkedAt ? new Date(ownerLive.checkedAt).toLocaleTimeString() : "—"}</span></div></div></> : <div className="owner-lock-card"><p className="section-label">RESTRICTED OWNER PANEL</p><h2>Private control surface.</h2><p>Sign in with the authorized Discord owner account to continue.</p><a className="invite" href="/api/auth/discord">Sign in with Discord ↗</a></div>}</section> : <section className="docs-layout" id="commands"><aside className="category-nav">{categories.map((item) => <button className={category === item ? "category active" : "category"} key={item} onClick={() => setCategory(item)}>{item}<span>{item === "All" ? commands.length : commands.filter((command) => command.category === item).length}</span></button>)}</aside><div className="command-content"><div className="command-top"><div><p className="section-label">PREFIX COMMANDS</p><h2>{category === "All" ? "Command reference." : `${category} commands`}</h2><small className="catalog-note">Use the <code>!</code> prefix. Destructive operations are restricted to authorized servers and users.</small></div><label className="search"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search commands…" /></label></div><div className="command-grid">{filtered.map((command) => <article className="command-card" key={command.name}><div className="command-title"><code>{command.name}</code></div><p>{command.description}</p><footer><span className="pill">{command.category}</span><span>{command.permission}</span></footer></article>)}</div></div></section>}
-    <footer className="site-footer"><span>✦ THE END OF ALL FATE</span><span>Private tools. Controlled access.</span><span>© 2026</span></footer>
-  </main>;
+  useEffect(() => {
+    if (!ownerAuth?.authenticated) return;
+    const refresh = () =>
+      fetch("/api/bot-events", { cache: "no-store" })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((data) => {
+          if (!data) return;
+          setBotEvents(data.events ?? []);
+          setEventConnected(Boolean(data.connected));
+        })
+        .catch(() => undefined);
+    refresh();
+    const timer = window.setInterval(refresh, 3000);
+    return () => window.clearInterval(timer);
+  }, [ownerAuth?.authenticated]);
+  const filtered = useMemo(
+    () =>
+      commands.filter(
+        (command) =>
+          (category === "All" || command.category === category) &&
+          `${command.name} ${command.description}`
+            .toLowerCase()
+            .includes(query.toLowerCase()),
+      ),
+    [category, query],
+  );
+  const filteredEvents = useMemo(
+    () =>
+      botEvents.filter((event) => {
+        const matchesLevel =
+          eventFilter === "all" || event.level === eventFilter;
+        const haystack =
+          `${event.type} ${event.message} ${event.command ?? ""} ${event.user ?? ""} ${event.guild ?? ""}`.toLowerCase();
+        return matchesLevel && haystack.includes(eventQuery.toLowerCase());
+      }),
+    [botEvents, eventFilter, eventQuery],
+  );
+  return (
+    <main className="site-shell">
+      <header className="site-header">
+        <a className="logo" href="#">
+          <span>✦</span> THE END OF ALL FATE
+        </a>
+        <div className="header-actions">
+          <button
+            className={
+              tab === "commands" ? "header-link active" : "header-link"
+            }
+            onClick={() => setTab("commands")}
+          >
+            Commands
+          </button>
+          <button
+            className={tab === "owner" ? "header-link active" : "header-link"}
+            onClick={() => setTab("owner")}
+          >
+            Owner panel
+          </button>
+          <a
+            className="invite"
+            href="https://discord.com/oauth2/authorize?client_id=1503928394411147304&permissions=8&scope=bot"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Add bot ↗
+          </a>
+        </div>
+      </header>
+      <section className="hero">
+        <div>
+          <p className="kicker">PRIVATE DISCORD TOOLKIT</p>
+          <h1>
+            The End
+            <br />
+            <i>Of All Fate.</i>
+          </h1>
+          <p className="hero-copy">
+            A whitelist-controlled Discord bot for server operations, logging,
+            backups, moderation, utilities, and support workflows.
+          </p>
+          <div className="hero-actions">
+            <button
+              className="primary"
+              onClick={() =>
+                document
+                  .getElementById("commands")
+                  ?.scrollIntoView({ behavior: "smooth" })
+              }
+            >
+              Browse commands <span>↓</span>
+            </button>
+            <span className="status">
+              <b /> Python bot online
+            </span>
+          </div>
+        </div>
+        <div className="orbit-art" aria-hidden="true">
+          <div className="orbit orbit-one" />
+          <div className="orbit orbit-two" />
+          <div className="orbit-core">✦</div>
+          <span className="orbit-label label-a">
+            !<small>prefix commands</small>
+          </span>
+          <span className="orbit-label label-b">
+            WL<small>protected access</small>
+          </span>
+        </div>
+      </section>
+      <section className="metrics">
+        <div>
+          <strong>{commands.length}</strong>
+          <span>documented commands</span>
+        </div>
+        <div>
+          <strong>15</strong>
+          <span>command categories</span>
+        </div>
+        <div>
+          <strong>24/7</strong>
+          <span>action logging</span>
+        </div>
+        <div>
+          <strong>1</strong>
+          <span>persistent whitelist</span>
+        </div>
+      </section>
+      {tab === "owner" ? (
+        <section className="owner-panel" id="owner">
+          {ownerAuth?.authenticated ? (
+            <>
+              <div className="owner-profile-large">
+                <div className="owner-banner">
+                  <span className="owner-crown">✦ OWNER</span>
+                </div>
+                <div className="owner-body">
+                  <img src="/owner-avatar.png" alt="Owner avatar" />
+                  <div className="owner-main">
+                    <p className="section-label">AUTHENTICATED OWNER</p>
+                    <h2>label</h2>
+                    <span>@lifeb4rehab</span>
+                  </div>
+                  <div className="owner-id">
+                    <span>DISCORD USER ID</span>
+                    <code>1501897844624461904</code>
+                  </div>
+                  <div className="owner-access">
+                    <b>OWNER ACCESS</b>
+                    <span>Full protected control</span>
+                  </div>
+                </div>
+                <div className="owner-stats">
+                  <div>
+                    <strong>Verified</strong>
+                    <span>Owner identity</span>
+                  </div>
+                  <div>
+                    <strong>Protected</strong>
+                    <span>Access scope</span>
+                  </div>
+                  <div>
+                    <strong>Persistent</strong>
+                    <span>Whitelist status</span>
+                  </div>
+                  <div>
+                    <strong>Private</strong>
+                    <span>Control surface</span>
+                  </div>
+                </div>
+              </div>
+              <div className="live-bot-panel">
+                <div className="live-bot-heading">
+                  <div>
+                    <p className="section-label">LIVE BOT INFORMATION</p>
+                    <h2>{botStatus.username}</h2>
+                    <p>
+                      Real-time telemetry for the connected Discord application.
+                    </p>
+                  </div>
+                  <span
+                    className={
+                      botStatus.connected ? "live-status online" : "live-status"
+                    }
+                  >
+                    <b />
+                    {botStatus.connected ? "Online" : "Awaiting token"}
+                  </span>
+                </div>
+                <div className="live-bot-grid">
+                  <div>
+                    <span>CLIENT ID</span>
+                    <code>{botStatus.botId}</code>
+                  </div>
+                  <div>
+                    <span>IDENTITY</span>
+                    <strong>{botStatus.username}</strong>
+                  </div>
+                  <div>
+                    <span>CHECK FREQUENCY</span>
+                    <strong>15 seconds</strong>
+                  </div>
+                  <div>
+                    <span>LAST CHECK</span>
+                    <strong>
+                      {botStatus.updatedAt
+                        ? new Date(botStatus.updatedAt).toLocaleTimeString()
+                        : "—"}
+                    </strong>
+                  </div>
+                </div>
+                <a
+                  className="invite live-invite"
+                  href="https://discord.com/oauth2/authorize?client_id=1503928394411147304&permissions=8&scope=bot"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Invite this bot to Discord ↗
+                </a>
+              </div>
+              <div className="live-command-panel">
+                <div className="live-bot-heading">
+                  <div>
+                    <p className="section-label">LIVE READ-ONLY COMMANDS</p>
+                    <h2>Command pulse</h2>
+                    <p>
+                      Owner-only availability checks, refreshed every 15
+                      seconds.
+                    </p>
+                  </div>
+                  <span className="live-status online">
+                    <b />
+                    Protected
+                  </span>
+                </div>
+                <div className="live-command-grid">
+                  {(ownerLive.commands ?? []).map((command) => (
+                    <div className="live-command" key={command.name}>
+                      <code>{command.name}</code>
+                      <span
+                        className={command.status === "ready" ? "ready" : ""}
+                      >
+                        <b />
+                        {command.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="live-command-meta">
+                  <span>{ownerLive.bot?.guilds ?? 0} connected servers</span>
+                  <span>
+                    Last check{" "}
+                    {ownerLive.checkedAt
+                      ? new Date(ownerLive.checkedAt).toLocaleTimeString()
+                      : "—"}
+                  </span>
+                </div>
+              </div>
+              <div className="event-log-panel">
+                <div className="event-log-header">
+                  <div>
+                    <p className="section-label">REAL-TIME BOT LOG</p>
+                    <h2>Live activity stream</h2>
+                    <p>
+                      Actual bot events refresh every 3 seconds. Tokens and
+                      message contents are never shown.
+                    </p>
+                  </div>
+                  <span
+                    className={
+                      eventConnected ? "live-status online" : "live-status"
+                    }
+                  >
+                    <b />
+                    {eventConnected ? "Streaming" : "Waiting for bot"}
+                  </span>
+                </div>
+                <div className="event-log-toolbar">
+                  <div className="event-filters">
+                    {(["all", "info", "warn", "error"] as const).map(
+                      (level) => (
+                        <button
+                          className={eventFilter === level ? "active" : ""}
+                          key={level}
+                          onClick={() => setEventFilter(level)}
+                        >
+                          {level}
+                          <span>
+                            {level === "all"
+                              ? botEvents.length
+                              : botEvents.filter(
+                                  (event) => event.level === level,
+                                ).length}
+                          </span>
+                        </button>
+                      ),
+                    )}
+                  </div>
+                  <label className="event-search">
+                    <span>⌕</span>
+                    <input
+                      value={eventQuery}
+                      onChange={(event) => setEventQuery(event.target.value)}
+                      placeholder="Search events…"
+                    />
+                  </label>
+                </div>
+                <div className="event-log-list">
+                  {filteredEvents.length ? (
+                    filteredEvents.map((event) => (
+                      <article
+                        className={`event-row ${event.level}`}
+                        key={event.id}
+                      >
+                        <time>
+                          {new Date(event.timestamp).toLocaleTimeString()}
+                        </time>
+                        <span className="event-level">{event.level}</span>
+                        <div className="event-copy">
+                          <strong>{event.message}</strong>
+                          <small>
+                            {[
+                              event.type,
+                              event.command,
+                              event.user,
+                              event.guild,
+                              event.channel,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </small>
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <div className="event-empty">
+                      <span>◌</span>
+                      <strong>No matching events yet</strong>
+                      <p>New bot activity will appear here automatically.</p>
+                    </div>
+                  )}
+                </div>
+                <div className="event-log-footer">
+                  <span>
+                    Showing {filteredEvents.length} of {botEvents.length} recent
+                    events
+                  </span>
+                  <span>Owner-only · read-only</span>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="owner-lock-card">
+              <p className="section-label">RESTRICTED OWNER PANEL</p>
+              <h2>Private control surface.</h2>
+              <p>
+                Sign in with the authorized Discord owner account to continue.
+              </p>
+              <a className="invite" href="/api/auth/discord">
+                Sign in with Discord ↗
+              </a>
+            </div>
+          )}
+        </section>
+      ) : (
+        <section className="docs-layout" id="commands">
+          <aside className="category-nav">
+            {categories.map((item) => (
+              <button
+                className={category === item ? "category active" : "category"}
+                key={item}
+                onClick={() => setCategory(item)}
+              >
+                {item}
+                <span>
+                  {item === "All"
+                    ? commands.length
+                    : commands.filter((command) => command.category === item)
+                        .length}
+                </span>
+              </button>
+            ))}
+          </aside>
+          <div className="command-content">
+            <div className="command-top">
+              <div>
+                <p className="section-label">PREFIX COMMANDS</p>
+                <h2>
+                  {category === "All"
+                    ? "Command reference."
+                    : `${category} commands`}
+                </h2>
+                <small className="catalog-note">
+                  Use the <code>!</code> prefix. Destructive operations are
+                  restricted to authorized servers and users.
+                </small>
+              </div>
+              <label className="search">
+                <span>⌕</span>
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search commands…"
+                />
+              </label>
+            </div>
+            <div className="command-grid">
+              {filtered.map((command) => (
+                <article className="command-card" key={command.name}>
+                  <div className="command-title">
+                    <code>{command.name}</code>
+                  </div>
+                  <p>{command.description}</p>
+                  <footer>
+                    <span className="pill">{command.category}</span>
+                    <span>{command.permission}</span>
+                  </footer>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+      <footer className="site-footer">
+        <span>✦ THE END OF ALL FATE</span>
+        <span>Private tools. Controlled access.</span>
+        <span>© 2026</span>
+      </footer>
+    </main>
+  );
 }
