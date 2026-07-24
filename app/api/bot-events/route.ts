@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-import { addEvent, eventStore } from "./store";
+import { addEvent, eventStore, setMetrics } from "./store";
 
 const ownerId = process.env.OWNER_ID ?? "1501897844624461904";
 
@@ -31,6 +31,7 @@ export async function GET() {
   if (!(await isOwner())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   return NextResponse.json({
     events: eventStore.events,
+    metrics: eventStore.metrics ?? null,
     connected: eventStore.events.some(
       (event) => event.type === "bot.ready" && Date.now() - new Date(event.timestamp).getTime() < 86_400_000,
     ),
@@ -53,6 +54,20 @@ export async function POST(request: NextRequest) {
   }
 
   const level = body.level === "error" || body.level === "warn" ? body.level : "info";
+  if (body.type === "bot.heartbeat" && body.metrics && typeof body.metrics === "object") {
+    const metrics = body.metrics as Record<string, unknown>;
+    setMetrics({
+      connected: true,
+      uptimeSeconds: Number(metrics.uptimeSeconds) || 0,
+      latencyMs: Number(metrics.latencyMs) || 0,
+      guilds: Number(metrics.guilds) || 0,
+      members: Number(metrics.members) || 0,
+      channels: Number(metrics.channels) || 0,
+      commands: Number(metrics.commands) || 0,
+      heartbeatAt: new Date().toISOString(),
+    });
+    return NextResponse.json({ accepted: true });
+  }
   const message = typeof body.message === "string" ? body.message.slice(0, 300) : "Bot event";
   addEvent({
     level,
