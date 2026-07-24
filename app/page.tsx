@@ -20,6 +20,16 @@ type BotEvent = {
   guild?: string;
   channel?: string;
 };
+type BotMetrics = {
+  connected: boolean;
+  uptimeSeconds: number;
+  latencyMs: number;
+  guilds: number;
+  members: number;
+  channels: number;
+  commands: number;
+  heartbeatAt: string;
+};
 const groups: Record<string, string[]> = {
   Channels: [
     "archivech <#ch>",
@@ -231,6 +241,7 @@ export default function Home() {
   >("all");
   const [eventQuery, setEventQuery] = useState("");
   const [eventConnected, setEventConnected] = useState(false);
+  const [botMetrics, setBotMetrics] = useState<BotMetrics | null>(null);
   const [botStatus, setBotStatus] = useState({
     connected: false,
     botId: "1503928394411147304",
@@ -273,6 +284,7 @@ export default function Home() {
           if (!data) return;
           setBotEvents(data.events ?? []);
           setEventConnected(Boolean(data.connected));
+          setBotMetrics(data.metrics ?? null);
         })
         .catch(() => undefined);
     refresh();
@@ -519,6 +531,28 @@ export default function Home() {
                       : "—"}
                   </span>
                 </div>
+              </div>
+              <div className="ops-panel">
+                <div className="live-bot-heading">
+                  <div>
+                    <p className="section-label">LIVE OPERATIONS</p>
+                    <h2>Bot health overview</h2>
+                    <p>Heartbeat data streamed directly from the Nuke Bot.</p>
+                  </div>
+                  <span className={botMetrics?.connected ? "live-status online" : "live-status"}>
+                    <b />
+                    {botMetrics?.connected ? "Heartbeat live" : "Waiting for heartbeat"}
+                  </span>
+                </div>
+                <div className="ops-grid">
+                  <div><span>UPTIME</span><strong>{botMetrics ? `${Math.floor(botMetrics.uptimeSeconds / 3600)}h ${Math.floor((botMetrics.uptimeSeconds % 3600) / 60)}m` : "—"}</strong><small>Since last restart</small></div>
+                  <div><span>LATENCY</span><strong>{botMetrics ? `${botMetrics.latencyMs} ms` : "—"}</strong><small>Discord gateway</small></div>
+                  <div><span>SERVERS</span><strong>{botMetrics?.guilds ?? "—"}</strong><small>Connected guilds</small></div>
+                  <div><span>MEMBERS</span><strong>{botMetrics?.members ?? "—"}</strong><small>Across all guilds</small></div>
+                  <div><span>CHANNELS</span><strong>{botMetrics?.channels ?? "—"}</strong><small>Visible channels</small></div>
+                  <div><span>COMMANDS</span><strong>{botMetrics?.commands ?? "—"}</strong><small>Registered prefix commands</small></div>
+                </div>
+                <div className="ops-footer"><span>Last heartbeat {botMetrics?.heartbeatAt ? new Date(botMetrics.heartbeatAt).toLocaleTimeString() : "—"}</span><span>{botEvents.filter((event) => event.level === "error").length} recent errors · {botEvents.filter((event) => event.level === "warn").length} warnings</span></div>
               </div>
               <div className="event-log-panel">
                 <div className="event-log-header">
